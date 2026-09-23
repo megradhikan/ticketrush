@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.db
+
+# Node
+node_modules/
+dist/
+build/
+.vite/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+sim_runs/
+
+# IDE
+.vscode/
+.idea/
+
+# Local notes (never pushed)
+NOTES.md
+*.local.md

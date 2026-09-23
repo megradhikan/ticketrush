@@ -1,0 +1,35 @@
+version: "3.9"
+
+# Postgres + Redis only, for local dev / running subagents' backend + tests
+# directly on the host (fast iteration, no image rebuilds). Full stack lives
+# in docker-compose.yml.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ticketrush
+      POSTGRES_PASSWORD: ticketrush
+      POSTGRES_DB: ticketrush
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ticketrush"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata_dev:
