@@ -16,6 +16,7 @@ from collections.abc import AsyncIterator, Callable
 
 import pytest
 import pytest_asyncio
+from redis.asyncio import Redis, from_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
@@ -82,6 +83,22 @@ async def _clean_tables(engine):
 @pytest_asyncio.fixture
 async def venue_with_seats(db) -> tuple[Venue, Event, list[Seat]]:
     return await create_venue_with_seats(db, sections=1, rows_per_section=2, seats_per_row=10)
+
+
+@pytest_asyncio.fixture
+async def redis_client() -> AsyncIterator[Redis]:
+    """Independent Redis client per test, against the real running Redis
+    instance from infra/docker-compose.dev.yml -- same rationale as `engine`
+    above: the Redis-first hold path's correctness rests on Lua scripts
+    actually running atomically on a real server, which a fake can't
+    reproduce. Flushed before and after so tests never see each other's
+    keys (this Redis instance is dev-only / test-only, same as Postgres
+    here -- see infra/docker-compose.dev.yml)."""
+    client = from_url(settings.redis_url, decode_responses=True)
+    await client.flushdb()
+    yield client
+    await client.flushdb()
+    await client.aclose()
 
 
 @pytest_asyncio.fixture
