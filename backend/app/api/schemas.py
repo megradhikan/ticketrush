@@ -59,3 +59,18 @@ class OrderOut(BaseModel):
 
 class CheckoutResponse(BaseModel):
     order: OrderOut
+
+
+class QueueJoinRequest(BaseModel):
+    session_id: uuid.UUID
+
+
+class QueueJoinResponse(BaseModel):
+    position: int
+    est_admit_at: datetime
+
+
+class QueueStatusResponse(BaseModel):
+    position: int
+    admitted: bool
+    admission_token: str | None = None
