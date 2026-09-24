@@ -38,3 +38,4 @@ infra/loadtest/seed_data/
 # Local notes (never pushed)
 NOTES.md
 *.local.md
+.claude/
