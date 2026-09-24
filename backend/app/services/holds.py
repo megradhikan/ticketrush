@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.state_machine import SeatStatus, assert_legal_transition
 from app.models.seat_state import SeatState
+from app.services.realtime import publish_seat_diffs
 
 
 class HoldError(Exception):
@@ -91,6 +92,7 @@ async def hold_seats(
         row.version += 1
 
     await db.commit()
+    await publish_seat_diffs(rows.values())  # realtime fanout (PRD 4.2), best-effort
     return list(seat_ids), expires_at
 
 
@@ -129,6 +131,7 @@ async def release_seats(
         row.version += 1
 
     await db.commit()
+    await publish_seat_diffs(rows.values())  # realtime fanout (PRD 4.2), best-effort
     return list(seat_ids)
 
 
@@ -151,4 +154,5 @@ async def release_expired_holds(db: AsyncSession, event_id: uuid.UUID | None = N
         row.version += 1
 
     await db.commit()
+    await publish_seat_diffs(rows)  # realtime fanout (PRD 4.2), best-effort
     return len(rows)

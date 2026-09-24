@@ -33,6 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.state_machine import SeatStatus, assert_legal_transition
 from app.models.order import Order, OrderSeat, OrderStatus
 from app.models.seat_state import SeatState
+from app.services.realtime import publish_seat_diffs
 
 
 class CheckoutError(Exception):
@@ -149,4 +150,5 @@ async def checkout(
         return winner
 
     await db.refresh(order)
+    await publish_seat_diffs(rows.values())  # realtime fanout (PRD 4.2), best-effort: sold or released
     return order

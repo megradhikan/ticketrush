@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,7 +21,7 @@ from app.api.schemas import (
 )
 from app.core.config import get_settings
 from app.db.redis_client import get_redis
-from app.db.session import get_db
+from app.db.session import AsyncSessionLocal, get_db
 from app.models.buyer_session import BuyerSession
 from app.models.order import OrderSeat
 from app.models.seat import Seat
@@ -30,6 +30,7 @@ from app.services import checkout as checkout_service
 from app.services import holds as holds_service
 from app.services import queue as queue_service
 from app.services import redis_holds as redis_holds_service
+from app.services.ws_manager import connection_manager
 
 router = APIRouter()
 settings = get_settings()
@@ -174,3 +175,47 @@ async def queue_status(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return QueueStatusResponse(position=result.position, admitted=result.admitted, admission_token=result.admission_token)
+
+
+@router.websocket("/events/{event_id}/stream")
+async def event_stream(websocket: WebSocket, event_id: uuid.UUID) -> None:
+    """PRD 4.2/10: WS seat-map diffs. On connect, sends a full snapshot
+    queried live from Postgres (source of truth); after that, forwards
+    `diff`/`diff_batch` messages published by holds/checkout via Redis
+    pub/sub fanout (see app.services.realtime, app.services.ws_manager).
+
+    Uses a short-lived session for the snapshot query only -- not
+    `Depends(get_db)`, which would hold a pooled connection checked out for
+    the whole (potentially long) lifetime of the socket.
+    """
+    await websocket.accept()
+
+    async with AsyncSessionLocal() as db:
+        stmt = select(SeatState).where(SeatState.event_id == event_id)
+        rows = list((await db.execute(stmt)).scalars())
+
+    await websocket.send_json(
+        {
+            "type": "snapshot",
+            "seats": [
+                {
+                    "seat_id": str(row.seat_id),
+                    "status": row.status,
+                    "held_until": row.held_until.isoformat() if row.held_until else None,
+                }
+                for row in rows
+            ],
+        }
+    )
+
+    await connection_manager.connect(event_id, websocket)
+    try:
+        while True:
+            # Clients don't send anything on this stream today; this just
+            # blocks until the client disconnects (or sends something we
+            # ignore), so we notice and clean up.
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await connection_manager.disconnect(event_id, websocket)

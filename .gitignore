@@ -27,6 +27,10 @@ build/
 *.log
 sim_runs/
 
+# Generated load-test seed data (tied to a specific ephemeral DB, regenerate
+# with infra/loadtest/seed_event.py)
+infra/loadtest/seed_data/
+
 # IDE
 .vscode/
 .idea/

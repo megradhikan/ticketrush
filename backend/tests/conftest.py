@@ -25,6 +25,7 @@ from app.models.buyer_session import BuyerSession
 from app.models.event import Event
 from app.models.seat import Seat
 from app.models.venue import Venue
+from app.services.realtime import close_redis
 
 settings = get_settings()
 
@@ -67,6 +68,18 @@ async def db(session_factory) -> AsyncIterator[AsyncSession]:
     async with session_factory() as session:
         yield session
         await session.rollback()
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _reset_realtime_redis_client():
+    """app.services.realtime keeps a module-level redis client for its
+    lifetime, but pytest-asyncio gives each test function its own event
+    loop -- and a redis-py client's connections can't cross loops any more
+    than asyncpg's can (see `engine` above). Drop it after every test so the
+    next test's calls open a fresh client under *their* loop instead of
+    reusing one tied to a now-closed loop."""
+    yield
+    await close_redis()
 
 
 @pytest_asyncio.fixture(autouse=True)
